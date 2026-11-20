@@ -16,6 +16,9 @@
 │   └── vite.config.ts        dev server 配置（open: false）
 ├── backend/                  FastAPI（Python） 后端
 │   ├── app/routers/resource.py  通用查询/导出/登记/动作接口
+│   ├── app/routers/evidence.py  语义证据数据索引专用接口（固定路径优先注册）
+│   ├── app/evidence_store.py    语义证据索引仓库（去重/锁/交付清单/旧编号别名/暂存）
+│   ├── app/services/semantic_evidence.py 证据索引领域服务
 │   ├── app/services/<key>.py    每个模块独立领域逻辑
 │   ├── app/services/base.py     共享服务骨架
 │   └── app/store.py          内存数据仓库与示例数据
@@ -56,7 +59,7 @@ npm run dev
 | 内容分类 | `content_classifier` | 分类标签 | 标签ID、页面URI、一级分类 |
 | 模板规则 | `template_rule` | 规则模板 | 模板名称、适用站点、提取字段 |
 | 文本分块 | `text_segment` | 文本块 | 块ID、来源页面、块类型 |
-| 情感标注 | `sentiment_tag` | 情感记录 | 记录ID、文本片段、情感倾向 |
+| 情感标注 | `sentiment_tag` | 情感记录 | 记录ID、文本片段、情感倾向、页面出处、标注版本 |
 | Schema对齐 | `schema_align` | 对齐规则 | 规则名称、源Schema、目标Schema |
 | 种子调度 | `feed_scheduler` | 调度任务 | 任务名称、URL种子、抓取深度 |
 | 质量检查 | `quality_check` | 检查规则 | 规则名称、检查字段、检查类型 |
@@ -68,6 +71,24 @@ npm run dev
 | 输出目标 | `output_target` | 输出配置 | 配置名称、输出类型、目标地址 |
 | 抽取工坊 | `extract_studio` | 交互任务 | 任务名称、示例页面、标注区域 |
 | 聚合视图 | `aggregate_view` | 视图配置 | 视图名称、统计维度、聚合字段 |
+
+## 语义证据数据索引
+
+语义结果消费**带页面出处**的情感标注时，会把预测与原文片段写入独立的语义证据索引
+（`/api/semantic-evidence/*`，前端导航「语义证据索引」）。索引与 18 个业务模块的内存库分离，
+不进入运营概览，但提供按原页面证据反查预测的能力：
+
+- `GET /api/semantic-evidence/search`：按**页面出处 + 意图标签 + 情感记录编号 + 文本片段**检索。
+  按页面筛选只返回该页出处**已确认**的证据；同文本在其他页面已确认、或本页出处未确认的条目
+  会出现在 `blocked_unconfirmed`（不含原文），提示回情感标注核对，避免乙页错用甲页原文。
+- `POST /api/semantic-evidence/index`：显式消费一条情感标注写入索引；缺出处的条目只进
+  **标注交付清单**（`GET /checklist`），补交前不可按页命中。
+- `POST /api/semantic-evidence/supplement-provenance`：情感标注补交页面出处。
+  `commit=false` 仅暂存（模拟补交中断），重投 `commit=true` 才确认；同一标注版本并发/重复提交
+  经版本锁串行化，只映射到一份出处记录（后到请求幂等返回）。
+- `GET /api/semantic-evidence/legacy/{legacy_id}`：用历史预测记录里的旧编号回查当前出处记录。
+- `GET /api/semantic-evidence/stats`：全站计数（总数/已确认/待确认/覆盖页面/待补清单/旧编号）
+  与逐页出处及意图分布。
 
 ## 约定
 

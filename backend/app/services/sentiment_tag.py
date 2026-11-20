@@ -5,6 +5,7 @@ import hashlib
 from typing import Any
 
 from app.services.base import BaseModuleService
+from app.services.semantic_evidence import build_annotation_version
 from app.store import store
 
 
@@ -21,11 +22,25 @@ class SentimentTagService(BaseModuleService):
     MODULE = "sentiment_tag"
     ENTITY = "情感记录"
     OPERATION_TERM = "校验"
-    LIST_FIELDS = ["记录ID", "文本片段", "情感倾向", "强烈程度", "方面词", "方面情感", "标注模型"]
+    LIST_FIELDS = ["记录ID", "文本片段", "情感倾向", "强烈程度", "方面词", "方面情感",
+                   "标注模型", "页面出处", "标注版本"]
     REQUIRED_FIELDS = ["记录ID", "文本片段", "情感倾向"]
     STATUS_ORDER = ["已标注", "已复核", "已修正", "已忽略"]
     ACTION_RULES = {"复核标注": "已标注", "修正标注": "已标注", "忽略标注": "已标注"}
     NEGATIVE_ACTIONS = ["忽略标注"]
+
+    def create_entry(self, values: dict[str, Any]) -> tuple[dict[str, Any] | None, list[str]]:
+        """登记情感记录时补齐标注版本；页面出处允许缺失，缺失项进入证据交付清单。"""
+        entry, missing = super().create_entry(values)
+        if entry is None:
+            return entry, missing
+        record_id = str(entry.get("记录ID", ""))
+        snippet = str(entry.get("文本片段", ""))
+        if not entry.get("标注版本"):
+            entry["标注版本"] = build_annotation_version(record_id, snippet)
+        if not str(entry.get("页面出处", "")).strip():
+            entry["页面出处"] = ""
+        return entry, []
 
     def analyze_sentiment(self, text_segment_block_id: str) -> dict[str, Any]:
         """分析单个文本块的情感：消费文本分块输出。"""

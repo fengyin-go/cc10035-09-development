@@ -18,6 +18,8 @@ export type ModuleMeta = {
   actions: string[]
   actionTargets: Record<string, string>
   metrics: string[]
+  // 登记时允许留空的字段（如系统自动生成的标注版本、允许后补的页面出处）。
+  optionalFields?: string[]
 }
 
 export type PageResult = {

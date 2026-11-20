@@ -74,8 +74,12 @@
       <form class="modal" @submit.prevent="submitCreate">
         <h3>登记{{ meta.entity }}</h3>
         <label v-for="field in meta.fields" :key="field" class="create-field">
-          <span>{{ field }}</span>
-          <input v-model="createValues[field]" :data-testid="`create-${field}`" required />
+          <span>{{ field }}{{ optionalFieldSet.has(field) ? '（可空）' : '' }}</span>
+          <input
+            v-model="createValues[field]"
+            :data-testid="`create-${field}`"
+            :required="!optionalFieldSet.has(field)"
+          />
         </label>
         <div class="page-actions">
           <button class="btn" type="button" @click="showCreate = false">取消</button>
@@ -95,6 +99,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 
 import {
   createEntry,
@@ -106,6 +111,7 @@ import {
 import type { EntryRow } from '@/data/types'
 
 const props = defineProps<{ moduleKey: string }>()
+const route = useRoute()
 const meta = moduleMeta(props.moduleKey)
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
@@ -115,6 +121,7 @@ const filterFields = meta.fields.slice(0, 3)
 const showCreate = ref(false)
 const creating = ref(false)
 const createValues = ref<Record<string, string>>({})
+const optionalFieldSet = computed(() => new Set(meta.optionalFields ?? []))
 const stats = computed(() => [
   { label: meta.metrics[0], value: total.value },
   { label: meta.metrics[1], value: rows.value.filter((row) => row.status === meta.statuses[1]).length },
@@ -187,5 +194,12 @@ async function reload() {
   }
 }
 
-onMounted(reload)
+onMounted(() => {
+  // 语义证据索引跳回情感标注核对时，通过 ?record= 预填记录ID筛选。
+  const record = route.query.record
+  if (typeof record === 'string' && record && filterFields.includes('记录ID')) {
+    filters.value['记录ID'] = record
+  }
+  void reload()
+})
 </script>
